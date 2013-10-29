@@ -8,7 +8,7 @@ Hi. Here it is, Lunchbeat made it from breadboard to printed circuit board :)
 
 "lunchbeat-PCB-firmware" contains source C code for Atmega328p 
 
-"lunchbeat-PCB-kicadproject" contains Kicad project :) where you can find schematics and printed circuit board design. Kicad is nice free software, use it :)
+"lunchbeat-PCB-kicadproject" contains Kicad project :) where you can find schematics, printed circuit board design, and libraries with used parts and modules. Kicad is nice free software, use it :)
 
 Feel free to use these files (read license first).
 
