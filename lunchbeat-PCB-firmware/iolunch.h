@@ -7,10 +7,6 @@
  *
  *        1-bit groovebox 
  *
- *          -----------
- *          PCB version
- *          -----------
- *
  * =============================
  *           iolunch.h
  * setup routine
@@ -38,10 +34,6 @@ void setup() {
 	DDRD  = 0b11100000;
 	PORTD = 0b00011111; 
 
-	// ext clock - trig in
-	DDRC &= ~(1 << PC5);
-	PORTC |= (1 << PC5);
-	
 	// interni ADC nastaveni
 	// internal ADC setup
 	//ADCSRA |= (0 << ADPS2) | (0 << ADPS1) | (0 << ADPS0); //   5   us

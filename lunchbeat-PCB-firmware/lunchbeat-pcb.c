@@ -5,14 +5,12 @@
  *
  *       L U N C H B E A T
  *
+ *             P C B
+ *
  *        1-bit groovebox 
  *
- *          -----------
- *          PCB version
- *          -----------
- *
  * =============================
- *          version: 1
+ *         version: 1.2
  *   target: atmega328p@16MHz
  *     (arduino compatible)
  * =============================
@@ -38,22 +36,23 @@
 uint8_t rawbutton = 0; 
 uint8_t button[2][6] = {{0,0,0,0,0,0},{0,0,0,0,0,0}} ; 	
 uint8_t seq[8] = {	0b00000001,
-				0b00000100,
-				0b00001010,
-				0b00000100,
-				0b00000000,
-				0b00000100,
-				0b00001010,
-				0b00001100 };
+			0b00000000,
+			0b00000000,
+			0b00000000,
+			0b00000000,
+			0b00000000,
+			0b00000000,
+			0b00000000 };
 uint8_t playing = 0;
-uint8_t extsyncmode = 1;
-uint8_t trigged = 0;
+uint8_t extsyncmode = 0;
+//uint8_t trigged = 0;
 uint8_t editmode = 0;
 volatile uint8_t playstep = 0;
 volatile uint8_t newstep = 0;
 volatile uint8_t editstep = 0;
 volatile uint16_t tempo = 4000;
 volatile uint16_t counter = 0;
+volatile uint8_t setmode = 0;
 uint8_t ledbar = 0;
 uint8_t ledbarhlf = 0;
 uint16_t pot[5];
@@ -64,17 +63,19 @@ uint16_t pot[5];
 #define WAVEPOT		1
 #define TEMPOPOT	0
 
-
 #define KICK 	0
 #define SNARE 	1
 #define HAT 	2
 #define WAVE	3
 #define TEMPO	4
+
 uint16_t gate[4];  
+uint8_t division = 1;
+uint8_t subdiv = 1;
 
-
-
-
+#define TEMPOLED_OFF PORTB &= ~(1 << PB1)
+#define TEMPOLED_ON  PORTB |= (1 << PB1)
+		
 
 /////////////////////////////////////////////////
 //
@@ -120,14 +121,26 @@ void controls() {
 			}
 		}
 	}
+	
 
-	// akce pro prave stisknuta tlacitka oneshot zvuku (tl. 0, 1, 2)
-	// button with oneshot sound just pressed
+	// akce pro prave stisknuta tlacitka 
+	// button sound just pressed
 	uint8_t tlac = 0;
 	for (tlac = 0; tlac < 6; tlac++) {
 		if (tlac < 4) {
 			if ((button[NOW][tlac] == 0xff) && (button[PREV][tlac] != 0xff)) {
-				if (editmode) {
+
+				if (setmode) {
+					uint8_t divisioncheck = division;
+					if (divisioncheck & (1 << (3 -tlac))) {
+						divisioncheck &= ~(1 << (3 - tlac)) ;
+					} 
+					else {
+						divisioncheck |= (1 << (3 - tlac));
+					}
+					if (divisioncheck >0) division = divisioncheck;
+				}
+				else if (editmode) {
 					if (seq[editstep] & (1 << tlac)) {
 						seq[editstep] &= ~(1 << tlac);
 					}
@@ -139,31 +152,36 @@ void controls() {
 					gate[tlac]	= 1;
 				}
 			}
-				
-			// pro button wave (tl. 3), kde hraje zvuk pokud je stisknuto 
-			// BASS button - plays until realeased
-			if (tlac == 3) {
-				if (button[NOW][WAVE] == 0x00) {
-					if (!(playing   &&    ((seq[playstep] & (1 << WAVE))))) {
-						gate[WAVE] = 0;
-					}
-				}
-			}
 		}
 		
 		// tlacitko play (tl. 4)
 		// play button
 		if (tlac == 4) {
 			if ((button[NOW][PLAY] == 0xff) && (button[PREV][PLAY] != 0xff)) { 
-				if (playing) {
+				if (setmode) {
+					if (extsyncmode) {
+						extsyncmode = 0;
+						DDRC |= (1 << PC5);
+						PORTC &= ~(1 << PC5);
+					}
+					else {
+						extsyncmode = 1;
+						DDRC &= ~(1 << PC5);
+						PORTC &= ~(1 << PC5);
+					}
+				}
+				else if (playing) {
 					playing = 0;
-				} else {
+				} 
+				else {
 					if (extsyncmode) {
 						playstep = 7;
+						subdiv = 1;
 					}
 					else {
 						playstep = 0;
 						newstep = 1;
+						PORTC |= (1 << PC5);
 						tempo = 5500 - (pot[TEMPOPOT] << 2);
 					}	
 					playing = 1;
@@ -204,7 +222,12 @@ void controls() {
 
 void lights() {
 
-	if (editmode) {
+	if (setmode) {
+		ledbar = ((division) << 4);
+		if (extsyncmode) ledbar |= 0b00000001;
+		ledbarhlf = 0;
+	}
+	else if (editmode) {
 		if (seq[editstep] & (1 << KICK))  {ledbar |= 0b11000000;} else {ledbar &= ~(0b11000000);}
 		if (seq[editstep] & (1 << SNARE)) {ledbar |= 0b00110000;} else {ledbar &= ~(0b00110000);}
 		if (seq[editstep] & (1 << HAT))   {ledbar |= 0b00001100;} else {ledbar &= ~(0b00001100);}
@@ -234,16 +257,28 @@ void lights() {
 
 int main() {
 
+	// do setup 
 	setup();
 	
-	extsyncmode = 1;
-	if (PINB & (1 << PB0)) extsyncmode = 0; 
+	DDRC |= (1 << PC5);
+	PORTC &= ~(1 << PC5);
 
+/*
+	// wait until all buttons released
+	uint8_t waitbutton = ~(PIND) & 0b00011111;
+	if (~(PINB) & (1<<PB0)) waitbutton |= 0b00100000; // pridame edit tlacitko z portu B
+	while (waitbutton) {
+		waitbutton = ~(PIND) & 0b00011111;
+		if (~(PINB) & (1<<PB0)) waitbutton |= 0b00100000; // pridame edit tlacitko z portu B
+	}
+*/
+
+	// and go for infinite loop
 	for (;;) {
 		
 		controls();		// read buttons and pots
 		lights();		// compute which LED to light up
-
+		
 		if (newstep) {
 			newstep = 0;
 			uint8_t i;
@@ -278,64 +313,49 @@ ISR(TIMER1_COMPA_vect) {
 
 		if (extsyncmode) { // externi clock
 	
-			if (PINC & (1 << PC5)) {
-				trigpin = 1;
-			}
-			else {
-				trigpin = 0;
-			}
+			if (PINC & (1 << PC5)) {trigpin = 1;} else {trigpin = 0;}
 
-		
-			// tempo led
-
-			// novy krok
+			// novy krok 
+			// new step
 			if ((trigpin == 1) && (lasttrigpin == 0)) {
-				counter = 0;
-				newstep = 1;
-				playstep ++;
-				if (playstep > 7) playstep = 0;
+				subdiv --;
+				if (subdiv == 0) {
+					subdiv = division ;
+					counter = 0;
+					newstep = 1;
+					playstep ++;
+					if (playstep > 7) playstep = 0;
+				}
 			}
 			
 			lasttrigpin = trigpin;
 		}  
 		else {  // interni clock
 			
-			//tempo led
-		
 			// novy krok
+			// new step
 			if (counter > tempo)   {
 				tempo = 5500 - (pot[TEMPOPOT] << 2);
 				counter = 0;
 				newstep = 1;
 				playstep ++;
 				if (playstep > 7) playstep = 0;
+
+				subdiv --;
+				if (subdiv == 0) {
+					subdiv = division ;
+					PORTC |= (1 << PC5);
+				}
 			}
+			
+			// trig out off
+			if (counter > 0x8f) {  // cca 10ms
+				PORTC &= ~(1 << PC5);
+			}
+				
 		}
 	}
 	
-
-	//////////////
-	//
-	//  tempo LED
-	//
-	if (playing) {
-		if (extsyncmode) {
-			if (counter < 1000) {PORTB &= ~(1 << PB1);} else { PORTB |= (1 << PB1);}
-		}
-		else
-		{
-			if (counter < (tempo >> 3)) {PORTB |= (1 << PB1);} else {PORTB &= ~(1 << PB1);}
-		}
-	}
-	else {
-		if (extsyncmode) {
-			PORTB |= (1 << PB1);
-		}
-		else {
-			PORTB &= ~(1 << PB1);
-		}
-	}
-
 
 	///////////////////////
 	// vypocet zvuku
@@ -431,6 +451,12 @@ ISR(TIMER1_COMPA_vect) {
 	//wave 
 	static uint8_t wave = 0;
 	static uint16_t wavefreq = 1;
+
+	if (button[NOW][WAVE] == 0x00) {
+		if (!(playing   &&    ((seq[playstep] & (1 << WAVE))))) {
+			gate[WAVE] = 0;
+		}
+	}
 	if (gate[WAVE]) {
 		gate[WAVE] ++;
 		if (!(gate[WAVE] % wavefreq )) {
@@ -461,7 +487,11 @@ ISR(TIMER1_COMPA_vect) {
 	PORTD = portmp;
 
 
+
+
+	//////////////////////////////////////////////////////
 	// out lights
+	/////////////////////////////////////////////////////
 	uint8_t leds = ledbar;
 	static uint8_t darkcycle = 0;
 	darkcycle ++;
@@ -469,6 +499,83 @@ ISR(TIMER1_COMPA_vect) {
 	if (darkcycle) leds &= ~(ledbarhlf);
 	ledbarout(leds);
 
+	//  tempo LED
+	if (setmode) {
+		static uint16_t setled = 0;
+		setled ++;
+		if (setled > 500) {
+			setled = 0;
+			if (PORTB & (1 << PB1)) {
+				TEMPOLED_OFF;
+			} 
+			else {
+				TEMPOLED_ON;
+			}
+		}
+	}
+
+	else {
+		if (playing) {
+			if (extsyncmode) {
+				if (PINC & (1 << PC5)) {
+					TEMPOLED_ON;
+				} 
+				else {
+					if (darkcycle) {
+						TEMPOLED_OFF;
+					}
+					else {
+						TEMPOLED_ON;
+					}
+				}
+			}
+			else
+			{
+				if (counter < (tempo >> 3)) {TEMPOLED_ON;} else {TEMPOLED_OFF;}
+			}
+		}
+		else {
+			if (extsyncmode) {
+				if (PINC & (1 << PC5)) {
+					if (darkcycle) {
+						TEMPOLED_OFF;
+					}
+					else {
+						TEMPOLED_ON;
+					}
+				}
+				else {
+					TEMPOLED_OFF;
+				}
+			}
+			else {
+				TEMPOLED_OFF;
+			}
+		}
+	}
+
+	/////////////////////////////////////////////////////////
+	// setup mode
+	//
+	static uint16_t setupcounter = 0;
+	
+	if (PINB & (1 << PB0)) {
+		setupcounter = 0;
+	} 
+	else {
+		setupcounter ++;
+	}
+
+	if (setupcounter == 0x7fff) {
+		if (setmode) {
+			setmode = 0;
+			editstep = 0;
+			editmode = 0;
+		}
+		else {
+			setmode = 1;
+		}
+	}
 }
 
 /*
