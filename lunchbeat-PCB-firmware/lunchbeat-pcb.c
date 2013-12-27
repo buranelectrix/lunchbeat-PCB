@@ -10,7 +10,7 @@
  *        1-bit groovebox 
  *
  * =============================
- *         version: 1.2
+ *         version: 1.3
  *   target: atmega328p@16MHz
  *     (arduino compatible)
  * =============================
@@ -161,12 +161,12 @@ void controls() {
 				if (setmode) {
 					if (extsyncmode) {
 						extsyncmode = 0;
-						DDRC |= (1 << PC5);
+					//	DDRC |= (1 << PC5);
 						PORTC &= ~(1 << PC5);
 					}
 					else {
 						extsyncmode = 1;
-						DDRC &= ~(1 << PC5);
+					//	DDRC &= ~(1 << PC5);
 						PORTC &= ~(1 << PC5);
 					}
 				}
@@ -258,20 +258,7 @@ void lights() {
 int main() {
 
 	// do setup 
-	setup();
-	
-	DDRC |= (1 << PC5);
-	PORTC &= ~(1 << PC5);
-
-/*
-	// wait until all buttons released
-	uint8_t waitbutton = ~(PIND) & 0b00011111;
-	if (~(PINB) & (1<<PB0)) waitbutton |= 0b00100000; // pridame edit tlacitko z portu B
-	while (waitbutton) {
-		waitbutton = ~(PIND) & 0b00011111;
-		if (~(PINB) & (1<<PB0)) waitbutton |= 0b00100000; // pridame edit tlacitko z portu B
-	}
-*/
+	setup_lunchbeat();
 
 	// and go for infinite loop
 	for (;;) {
@@ -313,7 +300,9 @@ ISR(TIMER1_COMPA_vect) {
 
 		if (extsyncmode) { // externi clock
 	
-			if (PINC & (1 << PC5)) {trigpin = 1;} else {trigpin = 0;}
+			// zmena na trig in na MISO pinu
+			//if (PINC & (1 << PC5)) {trigpin = 1;} else {trigpin = 0;}
+			if (PINB & (1 << PB4)) {trigpin = 1;} else {trigpin = 0;}
 
 			// novy krok 
 			// new step
@@ -325,6 +314,7 @@ ISR(TIMER1_COMPA_vect) {
 					newstep = 1;
 					playstep ++;
 					if (playstep > 7) playstep = 0;
+					PORTC |= (1 << PC5); //trigout on
 				}
 			}
 			
@@ -344,16 +334,16 @@ ISR(TIMER1_COMPA_vect) {
 				subdiv --;
 				if (subdiv == 0) {
 					subdiv = division ;
-					PORTC |= (1 << PC5);
+					PORTC |= (1 << PC5); // trigout on
 				}
 			}
-			
-			// trig out off
-			if (counter > 0x8f) {  // cca 10ms
-				PORTC &= ~(1 << PC5);
-			}
-				
 		}
+		
+		// trig out off
+		if (counter > 0x8f) {  // cca 10ms
+			PORTC &= ~(1 << PC5);
+		}
+
 	}
 	
 
@@ -517,7 +507,7 @@ ISR(TIMER1_COMPA_vect) {
 	else {
 		if (playing) {
 			if (extsyncmode) {
-				if (PINC & (1 << PC5)) {
+				if (PINB & (1 << PB4)) {
 					TEMPOLED_ON;
 				} 
 				else {

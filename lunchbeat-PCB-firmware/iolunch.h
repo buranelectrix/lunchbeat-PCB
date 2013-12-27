@@ -9,6 +9,7 @@
  *
  * =============================
  *           iolunch.h
+ *       for Lunchbeat 1.3
  * setup routine
  * ADC (reading pot) routines
  * SPI out (for LEDs) routine
@@ -19,7 +20,7 @@
  */
 
 
-void setup() {
+void setup_lunchbeat() {
 	
 	// tlacitko EDIT - EDIT button
 	DDRB &= ~(1 << PB0); // input
@@ -33,6 +34,11 @@ void setup() {
 	// port D - D0-D4 input, D5-D7 output
 	DDRD  = 0b11100000;
 	PORTD = 0b00011111; 
+	
+	// trigout
+	DDRC |= (1 << PC5);
+	PORTC &= ~(1 << PC5);
+
 
 	// interni ADC nastaveni
 	// internal ADC setup

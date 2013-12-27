@@ -1365,4 +1365,6 @@ Connection ~ 10450 5400
 Wire Wire Line
 	10450 5950 10450 6350
 Connection ~ 10450 6350
+Text Label 7400 5450 3    39   ~ 0
+batvcc
 $EndSCHEMATC
