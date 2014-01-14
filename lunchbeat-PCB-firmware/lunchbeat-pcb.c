@@ -10,7 +10,7 @@
  *        1-bit groovebox 
  *
  * =============================
- *         version: 1.3
+ *         version: 1.31
  *   target: atmega328p@16MHz
  *     (arduino compatible)
  * =============================
@@ -181,6 +181,7 @@ void controls() {
 					else {
 						playstep = 0;
 						newstep = 1;
+						subdiv = division;
 						PORTC |= (1 << PC5);
 						tempo = 5500 - (pot[TEMPOPOT] << 2);
 					}	
